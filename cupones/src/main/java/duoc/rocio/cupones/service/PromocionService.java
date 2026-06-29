@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import duoc.rocio.cupones.model.Promocion;
@@ -32,35 +31,22 @@ public class PromocionService {
     }
 
     // CREA UNA NUEVA PROMOCION
-    public ResponseEntity<String> guardarPromocion(Promocion promocionNueva) {
-
-        if (promocionRepository.existsByNombreIgnoreCase(promocionNueva.getNombre())) {
-            return ResponseEntity.status(409).body("La promoción ya existe");
-        }
-
-        if (promocionNueva.getFechaFin().isBefore(promocionNueva.getFechaInicio())) {
-            return ResponseEntity.status(400).body("La fecha de término no puede ser anterior a la fecha de inicio");
-        }
+    public int guardarPromocion(Promocion promocionNueva) {
+        if (promocionRepository.existsByNombreIgnoreCase(promocionNueva.getNombre())) return 1;
+        if (promocionNueva.getFechaFin().isBefore(promocionNueva.getFechaInicio())) return 2;
 
         promocionRepository.save(promocionNueva);
-        return ResponseEntity.status(201).body("Promoción registrada correctamente");
+        return 0;
     }
 
     // ACTUALIZA LOS DATOS DE UNA PROMOCIÓN
-    public ResponseEntity<String> actualizarPromocion(Long idPromocion, Promocion promocionActualizada) {
+    public int actualizarPromocion(Long idPromocion, Promocion promocionActualizada) {  
+        Optional<Promocion> promocionOpt = promocionRepository.findById(idPromocion);
+        
+        if (promocionOpt.isEmpty()) return 1;
+        if (promocionActualizada.getFechaFin().isBefore(promocionActualizada.getFechaInicio())) return 2;
 
-        Optional<Promocion> promocionEncontrada = promocionRepository.findById(idPromocion);
-
-        if (promocionEncontrada.isEmpty()) {
-            return ResponseEntity.status(404).body("Promoción no encontrada");
-        }
-
-        if (promocionActualizada.getFechaFin().isBefore(promocionActualizada.getFechaInicio())) {
-            return ResponseEntity.status(400).body("La fecha de término no puede ser anterior a la fecha de inicio");
-        }
-
-        Promocion promocion = promocionEncontrada.get();
-
+        Promocion promocion = promocionOpt.get();
         promocion.setNombre(promocionActualizada.getNombre());
         promocion.setDescripcion(promocionActualizada.getDescripcion());
         promocion.setFechaInicio(promocionActualizada.getFechaInicio());
@@ -68,39 +54,26 @@ public class PromocionService {
         promocion.setActiva(promocionActualizada.isActiva());
 
         promocionRepository.save(promocion);
-
-        return ResponseEntity.status(200).body("Promoción actualizada correctamente");
+        return 0;
     }
 
     // ACTIVA O DESACTIVA UNA PROMOCIÓN
-    public ResponseEntity<String> cambiarEstadoPromocion(Long idPromocion, boolean activa) {
+    public int cambiarEstadoPromocion(Long idPromocion, boolean activa) {
+        Optional<Promocion> promocionOpt = promocionRepository.findById(idPromocion);
+        
+        if (promocionOpt.isEmpty()) return 1;
 
-        Optional<Promocion> promocionEncontrada = promocionRepository.findById(idPromocion);
-
-        if (promocionEncontrada.isEmpty()) {
-            return ResponseEntity.status(404).body("Promoción no encontrada");
-        }
-
-        Promocion promocion = promocionEncontrada.get();
+        Promocion promocion = promocionOpt.get();
         promocion.setActiva(activa);
-
         promocionRepository.save(promocion);
-
-        if (activa) {
-            return ResponseEntity.status(200).body("Promoción activada correctamente");
-        }
-        return ResponseEntity.status(200).body("Promoción desactivada correctamente");
+        return 0;
     }
 
     // ELIMINAR PROMOCION
-    public ResponseEntity<String> eliminarPromocion(Long idPromocion) {
-
-        if (!promocionRepository.existsById(idPromocion)) {
-            return ResponseEntity.status(404).body("Promoción no encontrada");
-        }
+    public int eliminarPromocion(Long idPromocion) {
+        if (!promocionRepository.existsById(idPromocion)) return 1;
 
         promocionRepository.deleteById(idPromocion);
-
-        return ResponseEntity.status(200).body("Promoción eliminada correctamente");
+        return 0;
     }
 }

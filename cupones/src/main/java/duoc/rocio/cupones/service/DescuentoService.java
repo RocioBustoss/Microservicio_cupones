@@ -32,59 +32,39 @@ public class DescuentoService {
     }
 
     // CREAR UN NUEVO DESCUENTO
-    public ResponseEntity<String> guardarDescuento(Descuento descuentoNuevo) {
-
+    public int guardarDescuento(Descuento descuentoNuevo) {
         String tipo = descuentoNuevo.getTipoDescuento().toUpperCase();
 
-        if (!tipo.equals("PORCENTAJE") && !tipo.equals("MONTO_FIJO")) {
-            return ResponseEntity.status(400).body("El tipo de descuento debe ser PORCENTAJE o MONTO_FIJO");
-        }
-
-        if (tipo.equals("PORCENTAJE") && descuentoNuevo.getValor() > 100) {
-            return ResponseEntity.status(400).body("El porcentaje de descuento no puede ser mayor a 100");
-        }
+        if (!tipo.equals("PORCENTAJE") && !tipo.equals("MONTO_FIJO")) return 1;
+        if (tipo.equals("PORCENTAJE") && descuentoNuevo.getValor() > 100) return 2;
 
         descuentoNuevo.setTipoDescuento(tipo);
         descuentoRepository.save(descuentoNuevo);
-        return ResponseEntity.status(201).body("Descuento registrado correctamente");
+        return 0;
     }
 
     // ACTUALIZAR UN DESCUENTO
-    public ResponseEntity<String> actualizarDescuento(Long idDescuento, Descuento descuentoActualizado) {
-
-        Optional<Descuento> descuentoEncontrado = descuentoRepository.findById(idDescuento);
-
-        if (descuentoEncontrado.isEmpty()) {
-            return ResponseEntity.status(404).body("Descuento no encontrado");
-        }
+    public int actualizarDescuento(Long idDescuento, Descuento descuentoActualizado) {
+        Optional<Descuento> descuentoOpt = descuentoRepository.findById(idDescuento);
+        if (descuentoOpt.isEmpty()) return 1;
 
         String tipo = descuentoActualizado.getTipoDescuento().toUpperCase();
+        if (!tipo.equals("PORCENTAJE") && !tipo.equals("MONTO_FIJO")) return 2;
+        if (tipo.equals("PORCENTAJE") && descuentoActualizado.getValor() > 100) return 3;
 
-        if (!tipo.equals("PORCENTAJE") && !tipo.equals("MONTO_FIJO")) {
-            return ResponseEntity.status(400).body("El tipo de descuento debe ser PORCENTAJE o MONTO_FIJO");
-        }
-
-        if (tipo.equals("PORCENTAJE") && descuentoActualizado.getValor() > 100) {
-            return ResponseEntity.status(400).body("El porcentaje de descuento no puede ser mayor a 100");
-        }
-
-        Descuento descuento = descuentoEncontrado.get();
-
+        Descuento descuento = descuentoOpt.get();
         descuento.setTipoDescuento(tipo);
         descuento.setValor(descuentoActualizado.getValor());
 
         descuentoRepository.save(descuento);
-        return ResponseEntity.status(200).body("Descuento actualizado correctamente");
+        return 0;
     }
 
     // ELIMINAR DESCUENTO
-    public ResponseEntity<String> eliminarDescuento(Long idDescuento) {
-
-        if (!descuentoRepository.existsById(idDescuento)) {
-            return ResponseEntity.status(404).body("Descuento no encontrado");
-        }
-
+    public int eliminarDescuento(Long idDescuento) {
+        if (!descuentoRepository.existsById(idDescuento)) return 1;
+        
         descuentoRepository.deleteById(idDescuento);
-        return ResponseEntity.status(200).body("Descuento eliminado correctamente");
+        return 0;
     }
 }
