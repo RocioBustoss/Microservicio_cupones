@@ -60,22 +60,37 @@ public class DescuentoController {
     // CREA UN DESCUENTO
     @PostMapping
     public ResponseEntity<String> guardarDescuento(@Valid @RequestBody Descuento descuentoNuevo) {
+        int res = descuentoService.guardarDescuento(descuentoNuevo);
 
-        return descuentoService.guardarDescuento(descuentoNuevo);
+        if (res == 0) return ResponseEntity.status(201).body("Descuento registrado correctamente");
+        if (res == 1) return ResponseEntity.status(400).body("El tipo de descuento debe ser PORCENTAJE o MONTO_FIJO");
+        if (res == 2) return ResponseEntity.status(400).body("El porcentaje de descuento no puede ser mayor a 100");
+        
+        return ResponseEntity.internalServerError().build();
     }
 
 
     // ACTUALIZA UN DESCUENTO
     @PutMapping("/{idDescuento}")
     public ResponseEntity<String> actualizarDescuento(@PathVariable Long idDescuento, @Valid @RequestBody Descuento descuentoActualizado) {
+        int res = descuentoService.actualizarDescuento(idDescuento, descuentoActualizado);
 
-        return descuentoService.actualizarDescuento(idDescuento, descuentoActualizado);
+        if (res == 0) return ResponseEntity.ok("Descuento actualizado correctamente");
+        if (res == 1) return ResponseEntity.status(404).body("Descuento no encontrado");
+        if (res == 2) return ResponseEntity.status(400).body("El tipo de descuento debe ser PORCENTAJE o MONTO_FIJO");
+        if (res == 3) return ResponseEntity.status(400).body("El porcentaje de descuento no puede ser mayor a 100");
+
+        return ResponseEntity.internalServerError().build();
     }
 
     // ELIMINA UN DESCUENTO
     @DeleteMapping("/{idDescuento}")
     public ResponseEntity<String> eliminarDescuento(@PathVariable Long idDescuento) {
+        int res = descuentoService.eliminarDescuento(idDescuento);
 
-        return descuentoService.eliminarDescuento(idDescuento);
+        if (res == 0) return ResponseEntity.ok("Descuento eliminado correctamente");
+        if (res == 1) return ResponseEntity.status(404).body("Descuento no encontrado");
+
+        return ResponseEntity.internalServerError().build();
     }
 }

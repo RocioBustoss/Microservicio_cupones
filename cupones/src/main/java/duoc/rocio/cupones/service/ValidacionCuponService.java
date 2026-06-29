@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
@@ -59,83 +58,79 @@ public class ValidacionCuponService {
         return validacionCuponRepository.findByCupon_IdCuponOrderByFechaValidacionDesc(idCupon);
     }
 
-    // APLICA UN CUPÓN A UN PEDIDO (CONSULTA EL TOTAL DESDE PEDIDOS)
+    // APLICA UN CUPÓN A UN PEDIDO (Retorna el DTO con el estado de la operación)
     @Transactional
-    public ResponseEntity<?> aplicarCupon(AplicarCuponDTO datosSolicitud) {
+    public ResultadoCuponDTO aplicarCupon(AplicarCuponDTO datosSolicitud) {
 
         Optional<Cupon> cuponEncontrado = cuponRepository.findByCodigoIgnoreCase(datosSolicitud.getCodigo());
 
         if (cuponEncontrado.isEmpty()) {
-            return ResponseEntity.status(404).body("Cupón no encontrado");
+            return crearRespuestaError("ERROR_404", "Cupón no encontrado");
         }
 
         Cupon cupon = cuponEncontrado.get();
 
         if (!cupon.getEstado().equalsIgnoreCase("ACTIVO")) {
             guardarValidacionRechazada(cupon, datosSolicitud, "El cupón se encuentra inactivo");
-            return ResponseEntity.status(409).body("El cupón se encuentra inactivo");
+            return crearRespuestaError("RECHAZADO", "El cupón se encuentra inactivo");
         }
 
         if (!cupon.getPromocion().isActiva()) {
             guardarValidacionRechazada(cupon, datosSolicitud, "La promoción del cupón se encuentra inactiva");
-            return ResponseEntity.status(409).body("La promoción del cupón se encuentra inactiva");
+            return crearRespuestaError("RECHAZADO", "La promoción del cupón se encuentra inactiva");
         }
 
         LocalDate fechaActual = LocalDate.now();
 
         if (fechaActual.isBefore(cupon.getFechaInicio()) || fechaActual.isAfter(cupon.getFechaFin())) {
             guardarValidacionRechazada(cupon, datosSolicitud, "El cupón se encuentra fuera de vigencia");
-            return ResponseEntity.status(409).body("El cupón se encuentra fuera de vigencia");
+            return crearRespuestaError("RECHAZADO", "El cupón se encuentra fuera de vigencia");
         }
 
         if (cupon.getUsosActuales() >= cupon.getUsoMaximo()) {
             guardarValidacionRechazada(cupon, datosSolicitud, "El cupón alcanzó su límite máximo de usos");
-            return ResponseEntity.status(409).body("El cupón alcanzó su límite máximo de usos");
+            return crearRespuestaError("RECHAZADO", "El cupón alcanzó su límite máximo de usos");
         }
 
-        boolean cuponYaAplicado =validacionCuponRepository.existsByCupon_IdCuponAndIdPedidoAndResultadoIgnoreCase(cupon.getIdCupon(), datosSolicitud.getIdPedido(),"APROBADO");
+        boolean cuponYaAplicado = validacionCuponRepository.existsByCupon_IdCuponAndIdPedidoAndResultadoIgnoreCase(cupon.getIdCupon(), datosSolicitud.getIdPedido(),"APROBADO");
 
         if (cuponYaAplicado) {
             guardarValidacionRechazada(cupon, datosSolicitud, "El cupón ya fue aplicado a este pedido");
-            return ResponseEntity.status(409).body("El cupón ya fue aplicado a este pedido");
+            return crearRespuestaError("RECHAZADO", "El cupón ya fue aplicado a este pedido");
         }
 
         PedidoDTO pedido;
 
-        // PENDIENTE DE IMPLEMENTACIÓN
         try {
             String urlPedido = "http://localhost:8084/pedidos/" + datosSolicitud.getIdPedido();
             pedido = restTemplate.getForObject(urlPedido, PedidoDTO.class);
 
         } catch (HttpClientErrorException.NotFound error) {
-
             guardarValidacionRechazada(cupon, datosSolicitud, "Pedido no encontrado");
-            return ResponseEntity.status(404).body("Pedido no encontrado");
-
+            return crearRespuestaError("ERROR_404", "Pedido no encontrado");
         } catch (RestClientException error) {
-            return ResponseEntity.status(503).body("No fue posible comunicarse con el microservicio Pedidos");
+            return crearRespuestaError("ERROR_503", "No fue posible comunicarse con el microservicio Pedidos");
         }
 
         if (pedido == null) {
-            return ResponseEntity.status(404).body("No se pudo obtener la información del pedido");
+            return crearRespuestaError("ERROR_404", "No se pudo obtener la información del pedido");
         }
 
         if (!datosSolicitud.getIdCliente().equals(pedido.getIdCliente())) {
             guardarValidacionRechazada(cupon, datosSolicitud, "El pedido no pertenece al cliente indicado");
-            return ResponseEntity.status(409).body("El pedido no pertenece al cliente indicado");
+            return crearRespuestaError("RECHAZADO", "El pedido no pertenece al cliente indicado");
         }
 
         if (pedido.getTotal() == null || pedido.getTotal() <= 0) {
             guardarValidacionRechazada(cupon, datosSolicitud, "El pedido no tiene un monto válido para aplicar descuento");
-            return ResponseEntity.status(409).body("El pedido no tiene un monto válido para aplicar descuento");
+            return crearRespuestaError("RECHAZADO", "El pedido no tiene un monto válido para aplicar descuento");
         }
 
         double montoOriginal = pedido.getTotal();
-        double montoDescuento = calcularDescuento(cupon.getDescuento(),montoOriginal);
+        double montoDescuento = calcularDescuento(cupon.getDescuento(), montoOriginal);
         double montoFinal = montoOriginal - montoDescuento;
 
         ValidacionCupon validacion = new ValidacionCupon();
-
         validacion.setIdCliente(datosSolicitud.getIdCliente());
         validacion.setIdPedido(datosSolicitud.getIdPedido());
         validacion.setFechaValidacion(LocalDateTime.now());
@@ -152,7 +147,6 @@ public class ValidacionCuponService {
         cuponRepository.save(cupon);
 
         ResultadoCuponDTO resultado = new ResultadoCuponDTO();
-
         resultado.setIdValidacion(validacionGuardada.getIdValidacion());
         resultado.setIdPedido(datosSolicitud.getIdPedido());
         resultado.setIdCliente(datosSolicitud.getIdCliente());
@@ -163,14 +157,20 @@ public class ValidacionCuponService {
         resultado.setResultado("APROBADO");
         resultado.setMensaje("Cupón aplicado correctamente");
 
-        return ResponseEntity.status(200).body(resultado);
+        return resultado;
+    }
+
+    // MÉTODO AUXILIAR PARA GENERAR ERRORES LIMPIOS
+    private ResultadoCuponDTO crearRespuestaError(String estado, String mensaje) {
+        ResultadoCuponDTO error = new ResultadoCuponDTO();
+        error.setResultado(estado);
+        error.setMensaje(mensaje);
+        return error;
     }
 
     // GUARDA UN INTENTO FALLIDO DE APLICAR UN CUPÓN
     private void guardarValidacionRechazada(Cupon cupon, AplicarCuponDTO datosSolicitud, String motivo) {
-
         ValidacionCupon validacion = new ValidacionCupon();
-
         validacion.setIdCliente(datosSolicitud.getIdCliente());
         validacion.setIdPedido(datosSolicitud.getIdPedido());
         validacion.setFechaValidacion(LocalDateTime.now());
@@ -184,9 +184,8 @@ public class ValidacionCuponService {
         validacionCuponRepository.save(validacion);
     }
 
-    // CALCULA ES DESCUENTO SEGÚN EL TIPO DE CUPÓN ASOCIADO
+    // CALCULA EL DESCUENTO SEGÚN EL TIPO DE CUPÓN ASOCIADO
     private double calcularDescuento(Descuento descuento, double montoOriginal) {
-
         double montoDescuento;
 
         if (descuento.getTipoDescuento().equalsIgnoreCase("PORCENTAJE")) {
@@ -195,7 +194,6 @@ public class ValidacionCuponService {
             montoDescuento = descuento.getValor();
         }
 
-        // Si el descuento fijo es mayor al monto del pedido, el monto final queda en cero y no en negativo.
         if (montoDescuento > montoOriginal) {
             montoDescuento = montoOriginal;
         }
